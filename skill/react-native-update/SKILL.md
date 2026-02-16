@@ -35,6 +35,7 @@ Prioritize copy-paste-safe steps, smallest viable changes, and explicit verifica
 - Minimal integration diff (exact files and snippets).
 - Verification checklist (build, check update, download, switch version).
 - Troubleshooting hints for common failures.
+- Scenario examples when requested (including class component integration and custom whitelist rollout).
 
 ## Resources
 - Read `references/integration-playbook.md` before giving steps.

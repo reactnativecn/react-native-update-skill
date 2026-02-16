@@ -54,3 +54,63 @@
 - Expo project still carrying `expo-updates`.
 - iOS pods not installed after dependency update.
 - Native file edits not followed by full rebuild.
+
+## 8) Example: class component integration
+Use this when the app root is still class-based.
+
+```tsx
+import React from 'react';
+import { Platform } from 'react-native';
+import { Pushy, UpdateProvider } from 'react-native-update';
+import App from './App';
+import _updateConfig from './update.json';
+
+const { appKey } = _updateConfig[Platform.OS];
+
+const pushyClient = new Pushy({
+  appKey,
+  checkStrategy: 'onAppStart',
+  updateStrategy: 'alertUpdateAndIgnoreError',
+});
+
+export default class Root extends React.Component {
+  render() {
+    return (
+      <UpdateProvider client={pushyClient}>
+        <App />
+      </UpdateProvider>
+    );
+  }
+}
+```
+
+## 9) Example: custom whitelist (gray release)
+Use `metaInfo` and your own user/device attributes to decide whether to apply update.
+
+```tsx
+import { useEffect } from 'react';
+import { useUpdate } from 'react-native-update';
+
+// example only: implement with your real uid / device tags
+function useWhitelistGate(currentUserId: string) {
+  const { checkUpdate, updateInfo, downloadUpdate, switchVersionLater } = useUpdate();
+
+  useEffect(() => {
+    (async () => {
+      await checkUpdate();
+      if (!updateInfo?.update) return;
+
+      const allowList: string[] = updateInfo.metaInfo?.allowUsers ?? [];
+      if (!allowList.includes(currentUserId)) return; // not in whitelist
+
+      const ok = await downloadUpdate();
+      if (ok) switchVersionLater();
+    })();
+  }, [currentUserId, checkUpdate, updateInfo, downloadUpdate, switchVersionLater]);
+}
+```
+
+Notes:
+- Keep server-side rollout rules as source of truth; client whitelist is an extra guard.
+- Store small, explicit whitelist keys in `metaInfo` (e.g. `allowUsers`, `allowChannels`).
+- Prefer phased rollout: internal users -> small percent -> full rollout.
