@@ -1,6 +1,6 @@
 ---
 name: react-native-update
-description: React Native Update / Pushy hot-update integration assistant（react-native-update 集成助手）for React Native CLI and Expo projects. Use for 安装配置, appKey/update.json 接线, iOS/Android 原生改动, 更新策略（checkStrategy/updateStrategy）, expo-updates 冲突排查, and 热更新接入 troubleshooting.
+description: Unified integration skill for React Native Update / Pushy（统一入口）across OpenClaw and Claude Code workflows. Use for 安装配置, appKey/update.json 接线, iOS/Android 原生改动, 更新策略（checkStrategy/updateStrategy）, expo-updates 冲突排查, and 热更新接入 troubleshooting in mixed agent CLI environments.
 ---
 
 # React Native Update Integration
@@ -16,6 +16,13 @@ Prioritize copy-paste-safe steps, smallest viable changes, and explicit verifica
 4. Add `Pushy` client + `UpdateProvider` minimal bootstrapping.
 5. Run `scripts/integration_doctor.sh <app-root>` to detect common misses.
 6. Return a short action list: done / missing / next verification.
+
+
+## Platform routing
+- If user context is OpenClaw: provide OpenClaw-first instructions and file/workspace conventions.
+- If user context is Claude Code: provide Claude Code-first command style and workflow wording.
+- If context is unknown: provide neutral steps first, then append OpenClaw/Claude Code notes.
+- Keep technical steps identical; only adapt command conventions and delivery style.
 
 ## Guardrails
 - Keep user code changes minimal and localized.
