@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "skills": [
+    {
+      "name": "react-native-update",
+      "source": {
+        "type": "github",
+        "repo": "reactnativecn/react-native-update-skill",
+        "ref": "main",
+        "path": "skill/react-native-update"
+      },
+      "locked": {
+        "commit": "3063b389c3de4dc66eaaeb59fc61fad3f2d207b9",
+        "version": "0.4.0",
+        "manifestHash": "63cf8d1e769109bcea78fee48bef187cdd192622575d6b1ea45bc3377f400d3d",
+        "scriptsHash": "c69cb213b773016db4094c8e354e9e2ab9dd39bd8cd57e0e90f9b10a30f5ca2a",
+        "fileCount": 4,
+        "scriptFileCount": 1
+      },
+      "policy": {
+        "pinned": false,
+        "autoUpdate": "docs-only"
+      },
+      "installations": [
+        {
+          "agent": "codex",
+          "path": "~/.codex/skills/react-native-update"
+        }
+      ]
+    }
+  ]
+}
