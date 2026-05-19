@@ -107,6 +107,16 @@ try {
   assert(lock.skills[0].locked.commit === v2, 'lock did not advance to docs commit');
   assert(existsSync(path.join(INSTALL_PATH, 'SKILL.md')), 'installed skill was not copied');
 
+  writeFixture('README.md', 'root-only change\n');
+  const rootOnly = commit('root only');
+  result = manager(['check', '--lock', LOCK]).results[0];
+  assert(result.status === 'content-up-to-date', `expected content-up-to-date, got ${result.status}`);
+  assert(result.changeType === 'none', `expected no skill content change, got ${result.changeType}`);
+  result = manager(['update', '--lock', LOCK]).results[0];
+  assert(result.status === 'lock-refreshed', `expected lock-refreshed, got ${result.status}`);
+  lock = JSON.parse(readFileSync(LOCK, 'utf8'));
+  assert(lock.skills[0].locked.commit === rootOnly, 'lock did not refresh to root-only commit');
+
   writeFixture('skill/test-skill/scripts/tool.sh', '#!/usr/bin/env bash\necho v3\n', 0o755);
   commit('v3 script');
   result = manager(['check', '--lock', LOCK]).results[0];

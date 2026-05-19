@@ -258,17 +258,31 @@ function processSkill(skill, command, args) {
   const materialized = materialize(skill.source);
   try {
     const fp = fingerprint(materialized.skillPath);
+
+    if (command === 'lock') {
+      updateLocked(skill, materialized.commit, fp);
+      result.status = args.write ? 'lock-updated' : 'lock-update-available';
+      return result;
+    }
+
+    if (skill.locked?.manifestHash && skill.locked.manifestHash === fp.manifestHash) {
+      result.changeType = 'none';
+      if (command === 'check') {
+        result.status = 'content-up-to-date';
+        result.actions.push('source commit advanced, but skill content hash is unchanged');
+        return result;
+      }
+      if (!args.dryRun) updateLocked(skill, materialized.commit, fp);
+      result.status = args.dryRun ? 'would-refresh-lock' : 'lock-refreshed';
+      result.actions.push('skill content unchanged; refreshed lock commit only');
+      return result;
+    }
+
     const changeType = classifyChange(skill, fp);
     result.changeType = changeType;
 
     if (command === 'check') {
       result.status = 'update-available';
-      return result;
-    }
-
-    if (command === 'lock') {
-      updateLocked(skill, materialized.commit, fp);
-      result.status = args.write ? 'lock-updated' : 'lock-update-available';
       return result;
     }
 
