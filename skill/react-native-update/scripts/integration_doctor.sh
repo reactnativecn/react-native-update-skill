@@ -213,12 +213,37 @@ if [ -d harmony ]; then
   if grep_native harmony 'PushyFileJSBundleProvider'; then
     ok "Harmony PushyFileJSBundleProvider detected"
   else
-    warn "Harmony PushyFileJSBundleProvider not detected"
+    warn "Harmony PushyFileJSBundleProvider not detected in Index.ets"
   fi
-  if grep_native harmony 'reactNativeUpdatePlugin|pushy\.har|PushyPackage'; then
-    ok "Harmony native Pushy package/plugin signal detected"
+  if grep_native harmony 'reactNativeUpdatePlugin'; then
+    ok "Harmony reactNativeUpdatePlugin detected in hvigorfile.ts"
   else
-    warn "Harmony native package/plugin wiring not detected"
+    warn "Harmony reactNativeUpdatePlugin not detected in hvigorfile.ts"
+  fi
+  if grep_native harmony 'PushyPackage'; then
+    ok "Harmony PushyPackage detected"
+  else
+    warn "Harmony PushyPackage not detected in RNPackagesFactory.ts or PackageProvider.cpp"
+  fi
+  if grep_native harmony 'pushy\\.har'; then
+    ok "Harmony pushy.har dependency detected in oh-package.json5"
+  else
+    warn "Harmony pushy.har dependency not detected in oh-package.json5"
+  fi
+  if grep_native harmony 'PushyTurboModule'; then
+    ok "Harmony PushyTurboModule detected in CMakeLists.txt"
+  else
+    warn "Harmony PushyTurboModule not detected in CMakeLists.txt"
+  fi
+  if grep_native harmony 'bundle\\.harmony\\.js'; then
+    ok "Harmony bundle filename bundle.harmony.js referenced"
+  else
+    warn "Harmony bundle filename bundle.harmony.js not found; ensure ResourceJSBundleProvider uses 'bundle.harmony.js'"
+  fi
+  if [ -f harmony/AppScope/app.json5 ]; then
+    ok "harmony/AppScope/app.json5 found (versionName is used as packageVersion)"
+  else
+    warn "harmony/AppScope/app.json5 not found"
   fi
 elif has_node && [ -f update.json ] && node -e "const u=require('./update.json'); process.exit(u.harmony?0:1)" >/dev/null 2>&1; then
   info "update.json has a harmony entry, but no harmony directory was found; skipping Harmony native checks"

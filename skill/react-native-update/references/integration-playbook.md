@@ -128,9 +128,54 @@ Rules:
 - `debug: true` can check/download in development but cannot apply patches. Applying updates requires release builds.
 - `throwError: true` lets callers use `try/catch`; otherwise use `lastError`.
 - `beforeCheckUpdate`, `beforeDownloadUpdate`, `afterDownloadUpdate`, and `onPackageExpired` are control hooks for custom gates.
-- `afterCheckUpdate` is useful for analytics or observability after each check.
+- `afterCheckUpdate` (v10.38.3+) is useful for analytics or observability after each check. Receives `UpdateCheckState` with `status` ("completed"/"skipped"/"error"), optional `result`, and optional `error`.
+- `beforeReload` (v10.42.2+) executes before `switchVersion()` or `restartApp()` actually restarts the app. Return `false` to cancel the restart. Useful for cleaning up native SDKs (e.g., Sentry profiling) before the RN instance is destroyed. `switchVersionLater()` does NOT trigger this hook.
 - `logger` can forward update events to analytics.
 - Avoid passing the `client` object down through app code. Keep the client at provider setup and drive UI through `useUpdate()` state.
+
+### `beforeReload` example: clean up native SDK before restart
+
+If the app integrates Sentry profiling, performance sampling, or similar native SDKs that work across threads, use `beforeReload` to stop sampling and flush queues before Pushy restarts:
+
+```ts
+import { NativeModules } from "react-native";
+import * as Sentry from "@sentry/react-native";
+import { Pushy } from "react-native-update";
+
+const pushyClient = new Pushy({
+  appKey,
+  beforeReload: async (context) => {
+    // context.type is "switchVersion" or "restartApp"
+    // context.hash is the update hash when type is "switchVersion"
+    try {
+      NativeModules.RNSentry?.stopProfiling?.();
+    } catch {}
+
+    const flushed = await Promise.race([
+      Sentry.flush(),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1500)),
+    ]);
+
+    // Return false to cancel this restart; the next check or manual trigger will retry.
+    return flushed;
+  },
+});
+```
+
+### `useUpdate()` return values
+
+The `useUpdate()` hook returns these key functions and state:
+- `checkUpdate`: Trigger update check. Returns `UpdateInfo` on v10.26.0+, but prefer reading `updateInfo` from the hook.
+- `downloadUpdate`: Download the update. Returns `boolean` on v10.16.0+.
+- `switchVersion`: Immediately restart and apply the downloaded update. Waits for `beforeReload` if configured.
+- `switchVersionLater`: Apply update on next manual restart. Does NOT trigger `beforeReload`.
+- `restartApp` (v10.28.2+): Restart the app immediately. Waits for `beforeReload` if configured.
+- `updateInfo`: Current update state (`{update: true}`, `{upToDate: true}`, or `{expired: true}`).
+- `lastError`: Most recent error from check/download/apply.
+- `progress`: Download progress `{hash, received, total}`.
+- `currentHash`: Current hot-update version hash.
+- `packageVersion`: Current native version number.
+- `currentVersionInfo` (v10.31.2+): Sync field with `{name, description, metaInfo}` of current hot-update version.
 
 ## 6) Native touchpoints
 
@@ -156,14 +201,102 @@ Rules:
 - For AAB resource splits, `react-native-update` >= 10.36.0 handles the known image issue. On older versions, disable density splitting.
 
 ### Harmony
-Minimum native checklist:
-- `harmony/entry/src/main/cpp/CMakeLists.txt`: include `react-native-update/harmony/pushy/src/main/cpp` and compile `PushyTurboModule.cpp`.
-- `harmony/entry/src/main/cpp/PackageProvider.cpp`: add `PushyPackage`.
-- `harmony/entry/oh-package.json5`: add the `pushy` HAR dependency.
-- `harmony/hvigor/hvigor-config.json5`: point `pushy` to `node_modules/react-native-update/harmony`.
-- `harmony/entry/hvigorfile.ts`: add `reactNativeUpdatePlugin()`.
-- `harmony/entry/src/main/ets/RNPackagesFactory.ts`: return `new PushyPackage(ctx)`.
-- `harmony/entry/src/main/ets/pages/Index.ets`: add `PushyFileJSBundleProvider` before the resource bundle provider fallback.
+Minimum native checklist with code examples:
+
+**1. `harmony/entry/src/main/cpp/CMakeLists.txt`**
+
+Add after `add_library(rnoh_app ...)`:
+
+```cmake
+set(PUSHY_CPP_DIR "${NODE_MODULES}/react-native-update/harmony/pushy/src/main/cpp")
+target_include_directories(rnoh_app PRIVATE "${PUSHY_CPP_DIR}")
+target_sources(rnoh_app PRIVATE "${PUSHY_CPP_DIR}/PushyTurboModule.cpp")
+```
+
+**2. `harmony/entry/src/main/cpp/PackageProvider.cpp`**
+
+```cpp
+#include "RNOH/PackageProvider.h"
+#include "PushyPackage.h"
+using namespace rnoh;
+
+std::vector<std::shared_ptr<Package>> PackageProvider::getPackages(Package::Context ctx) {
+    return {
+         std::make_shared<PushyPackage>(ctx)
+    };
+}
+```
+
+**3. `harmony/entry/oh-package.json5`**
+
+Add to dependencies:
+
+```json5
+"dependencies": {
+  "pushy": "file:../../node_modules/react-native-update/harmony/pushy.har",
+}
+```
+
+**4. `harmony/hvigor/hvigor-config.json5`**
+
+```json5
+{
+  dependencies: {
+    pushy: "file:../../node_modules/react-native-update/harmony",
+  },
+}
+```
+
+**5. `harmony/entry/hvigorfile.ts`**
+
+```ts
+import {hapTasks} from '@ohos/hvigor-ohos-plugin';
+import {reactNativeUpdatePlugin} from 'pushy/hvigor-plugin';
+
+export default {
+  system: hapTasks /* Built-in plugin of Hvigor. It cannot be modified. */,
+  plugins: [
+    reactNativeUpdatePlugin(),
+  ] /* Custom plugin to extend the functionality of Hvigor. */,
+};
+```
+
+**6. `harmony/entry/src/main/ets/RNPackagesFactory.ts`**
+
+```ts
+import type {
+  RNPackageContext,
+  RNPackage,
+} from "@rnoh/react-native-openharmony/ts";
+import { PushyPackage } from "pushy/ts";
+
+export function createRNPackages(ctx: RNPackageContext): RNPackage[] {
+  return [new PushyPackage(ctx)];
+}
+```
+
+**7. `harmony/entry/src/main/ets/pages/Index.ets`**
+
+Add `PushyFileJSBundleProvider` into `AnyJSBundleProvider`:
+
+```ts
+import { PushyFileJSBundleProvider } from 'pushy/src/main/ets/PushyFileJSBundleProvider';
+
+// Inside RNApp jsBundleProvider:
+jsBundleProvider: new TraceJSBundleProviderDecorator(
+  new AnyJSBundleProvider([
+    new PushyFileJSBundleProvider(this.rnohCoreContext.uiAbilityContext),
+    // Note: keep bundle filename as bundle.harmony.js regardless of hermes bytecode
+    new ResourceJSBundleProvider(this.rnohCoreContext.uiAbilityContext.resourceManager, 'bundle.harmony.js')
+  ]),
+  this.rnohCoreContext.logger),
+```
+
+**Important**: Keep the bundle file name as `bundle.harmony.js` whether or not Hermes bytecode is used.
+
+**Harmony version info**: The `versionName` field in `harmony/AppScope/app.json5` is recorded as `packageVersion`.
+
+**Build and upload**: Use DevEco-Studio: Build => Build Hap(s)/App(s) => Build App(s). The output is at `harmony/build/outputs/default/harmony-default-unsigned.app`. Upload with `pushy uploadApp <file.app>` or `cresc uploadApp <file.app>`.
 
 ## 7) Release baseline and publishing
 - Build the native release first and upload the exact distributed package as the baseline:
@@ -198,6 +331,10 @@ Minimum native checklist:
 - [ ] App can switch to new version (now/later behavior as expected).
 - [ ] QR/deep-link test path works if used.
 - [ ] Rollback behavior understood/tested for crash scenarios.
+- [ ] Harmony: all 7 native files configured (CMakeLists.txt, PackageProvider.cpp, oh-package.json5, hvigor-config.json5, hvigorfile.ts, RNPackagesFactory.ts, Index.ets).
+- [ ] Harmony: bundle filename is `bundle.harmony.js`.
+- [ ] Harmony: `PushyFileJSBundleProvider` comes before `ResourceJSBundleProvider` in `AnyJSBundleProvider`.
+- [ ] If using Sentry/profiling SDK: `beforeReload` configured to flush before restart.
 
 ## 9) Common pitfalls
 - Missing/incorrect `update.json` appKey by platform.
@@ -216,6 +353,11 @@ Minimum native checklist:
 - iOS pods not installed after dependency update.
 - Native file edits not followed by full rebuild.
 - Treating `metaInfo` as an object. It is a string payload; parse JSON defensively.
+- Harmony: using wrong bundle filename. Must be `bundle.harmony.js` regardless of Hermes bytecode usage.
+- Harmony: missing `PushyFileJSBundleProvider` in `AnyJSBundleProvider` — it must come before the `ResourceJSBundleProvider` fallback.
+- Harmony: missing `reactNativeUpdatePlugin()` in `hvigorfile.ts`.
+- Harmony: missing `PushyTurboModule.cpp` in `CMakeLists.txt`.
+- App uses native SDKs with cross-thread work (Sentry profiling, etc.) and calls `switchVersion()` or `restartApp()` without configuring `beforeReload` — can cause crashes or data loss during restart.
 
 ## 10) Example: class component integration
 Use this when the app root is still class-based.

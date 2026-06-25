@@ -37,12 +37,14 @@ Prioritize copy-paste-safe steps, smallest viable changes, and explicit verifica
 - Preserve existing app architecture; adapt snippets to current project style.
 - If native files differ heavily (monorepo/mixed native), provide targeted patch guidance instead of broad rewrites.
 - Treat JS/assets as OTA-safe. Native code, native config, native assets, pods, Gradle settings, HAR/AAR/XCFramework contents, and manifests require a new native release and baseline upload.
+- If the app uses native SDKs that work across threads (Sentry profiling, performance sampling), recommend `beforeReload` (v10.42.2+) to clean up before `switchVersion()` or `restartApp()`.
 
 ## Outputs to provide
 - Minimal integration diff with exact files and snippets.
 - Verification checklist: release build, baseline upload, check update, download, switch now/later, rollback behavior.
 - Troubleshooting hints for common failures.
 - Scenario examples when requested: class component root, custom UI, `metaInfo` rollout gates, QR/deep-link testing, brownfield integration, canary rollout.
+- Harmony-specific guidance with complete file-by-file code examples (CMakeLists.txt, PackageProvider.cpp, oh-package.json5, hvigor-config.json5, hvigorfile.ts, RNPackagesFactory.ts, Index.ets).
 
 ## Resources
 - Read `references/integration-playbook.md` before giving steps.
