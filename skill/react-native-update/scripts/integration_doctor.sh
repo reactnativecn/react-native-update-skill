@@ -66,16 +66,52 @@ if [ "$locks" -gt 1 ]; then
 fi
 
 if pkg_query "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; process.exit(d['react-native-update']?0:1)"; then
-  rnu_version="$(node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; console.log(d['react-native-update'])")"
-  ok "react-native-update dependency present ($rnu_version)"
+  rnu_declared="$(node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; console.log(d['react-native-update'])")"
+  rnu_installed="$(node -e "try { console.log(require('react-native-update/package.json').version || '') } catch {}")"
+  if [ -n "$rnu_installed" ]; then
+    ok "react-native-update dependency present (declared $rnu_declared, installed $rnu_installed)"
+    node - "$rnu_installed" <<'NODE'
+const version = process.argv[2];
+const parse = (value) => value.split(/[.-]/).slice(0, 3).map((part) => Number(part) || 0);
+const gte = (left, right) => {
+  const a = parse(left);
+  const b = parse(right);
+  return a.some((part, index) => part > b[index] && a.slice(0, index).every((v, i) => v === b[i])) || a.every((part, index) => part === b[index]);
+};
+if (gte(version, '10.49.0')) {
+  console.log('[ok] bundleHash baseline identity is available');
+} else {
+  console.log('[info] react-native-update <10.49.0; keep buildTime-era baseline diagnostics');
+}
+if (gte(version, '10.52.1')) {
+  console.log('[ok] native cold-start recovery capability is available');
+} else {
+  console.log('[info] react-native-update <10.52.1; native cold-start brick recovery is unavailable until the next native release');
+}
+NODE
+  else
+    ok "react-native-update dependency declared ($rnu_declared)"
+    warn "installed react-native-update version could not be resolved; install dependencies before version-specific diagnostics"
+  fi
 else
   miss "react-native-update dependency missing"
 fi
 
-if command -v pushy >/dev/null 2>&1 || command -v cresc >/dev/null 2>&1; then
-  ok "react-native-update-cli command available"
+cli_command=""
+if command -v pushy >/dev/null 2>&1; then
+  cli_command="pushy"
+elif command -v cresc >/dev/null 2>&1; then
+  cli_command="cresc"
+fi
+if [ -n "$cli_command" ]; then
+  cli_version="$($cli_command version 2>/dev/null | sed -n '1p' || true)"
+  if [ -n "$cli_version" ]; then
+    ok "global react-native-update-cli available: $cli_version"
+  else
+    ok "global react-native-update-cli command available ($cli_command)"
+  fi
 else
-  warn "pushy/cresc CLI not found on PATH; install react-native-update-cli or use npx"
+  warn "global pushy/cresc CLI not found on PATH; run npm i -g react-native-update-cli"
 fi
 
 if pkg_query "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; process.exit(d.expo?0:1)"; then
@@ -159,6 +195,9 @@ fi
 if ! grep_js 'new[[:space:]]+(Pushy|Cresc)\('; then
   warn "Pushy/Cresc client initialization not detected"
 fi
+if grep_js 'disableNativeCheck[[:space:]]*:[[:space:]]*true'; then
+  warn "disableNativeCheck: true detected; this opts out of v10.52.1+ native cold-start brick recovery"
+fi
 
 if [ -d ios ]; then
   ok "ios project found"
@@ -223,9 +262,9 @@ if [ -d harmony ]; then
   if grep_native harmony 'PushyPackage'; then
     ok "Harmony PushyPackage detected"
   else
-    warn "Harmony PushyPackage not detected in RNPackagesFactory.ts or PackageProvider.cpp"
+    warn "Harmony PushyPackage not detected in RNPackagesFactory.ets or PackageProvider.cpp"
   fi
-  if grep_native harmony 'pushy\\.har'; then
+  if grep_native harmony 'pushy\.har'; then
     ok "Harmony pushy.har dependency detected in oh-package.json5"
   else
     warn "Harmony pushy.har dependency not detected in oh-package.json5"
@@ -235,7 +274,7 @@ if [ -d harmony ]; then
   else
     warn "Harmony PushyTurboModule not detected in CMakeLists.txt"
   fi
-  if grep_native harmony 'bundle\\.harmony\\.js'; then
+  if grep_native harmony 'bundle\.harmony\.js'; then
     ok "Harmony bundle filename bundle.harmony.js referenced"
   else
     warn "Harmony bundle filename bundle.harmony.js not found; ensure ResourceJSBundleProvider uses 'bundle.harmony.js'"

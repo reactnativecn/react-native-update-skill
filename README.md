@@ -19,7 +19,10 @@ npx skills add reactnativecn/react-native-update-skill --skill react-native-upda
 - Pushy/Cresc service routing
 - `update.json` / `appKey` wiring
 - iOS, Android, Expo, HarmonyOS, and brownfield checkpoints
-- `UpdateProvider`, `useUpdate`, strategies, hooks, and `metaInfo` flows
+- Backward-compatible SDK/native capability gates and global CLI usage
+- `UpdateProvider`, `useUpdate`, progress/error/reset APIs, strategies, hooks, and `metaInfo` flows
+- Native cold-start recovery, force-boot rescue, and resumable downloads on 10.52.1+
+- `bundleHash` baseline identity and `unknownBundle` diagnostics on 10.49.0+
 - Release baseline upload and hot update publishing checks
 - Common conflict checks such as `expo-updates`, Android bundle URL misses, iOS bundle URL misses, and release asset diff pitfalls
 
