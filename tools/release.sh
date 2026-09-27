@@ -25,6 +25,19 @@ if ! git diff --cached --quiet; then
   git push origin HEAD:main
 fi
 commit="$(git rev-parse HEAD)"
+# A Release target does not override a pre-existing Git tag. Resolve annotated
+# tags to their peeled commit and fail before publishing if the name is occupied.
+remote_tags="$(git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}")"
+tag_commit="$(printf '%s\n' "$remote_tags" | awk -v ref="refs/tags/$tag" '$2 == ref {direct=$1} $2 == ref "^{}" {peeled=$1} END {print peeled ? peeled : direct}')"
+if [[ -n "$tag_commit" && "$tag_commit" != "$commit" ]]; then
+  echo "Refusing to publish: $tag points to $tag_commit, not tested package commit $commit. Choose a new version."
+  exit 1
+fi
+if [[ -z "$tag_commit" ]]; then
+  git tag "$tag" "$commit"
+  # No force: a racing publisher cannot silently repoint or reuse this name.
+  git push origin "refs/tags/$tag"
+fi
 sha256sum react-native-update.skill > SHA256SUMS
 
 state="$(mktemp)"
@@ -41,7 +54,7 @@ if [[ -s "$state" ]]; then
   fi
   [[ "$target" == "$commit" ]] || { echo 'Existing draft targets a different commit; manual reconciliation required'; exit 1; }
 else
-  gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --target "$commit" \
+  gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --target "$commit" \
     --title "react-native-update skill $tag" --notes-file "$notes"
 fi
 gh release upload "$tag" react-native-update.skill SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber

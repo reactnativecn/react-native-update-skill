@@ -54,3 +54,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash tools/release.sh
+      - name: Withdraw mistaken release metadata without touching historical tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/withdraw-mistagged-release.mjs
