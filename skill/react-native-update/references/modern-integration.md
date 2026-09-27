@@ -82,10 +82,10 @@ Keep equivalence verification enabled. To isolate a base-related failure, explic
 ## Interpreting the doctor
 
 ```bash
-scripts/integration_doctor.sh /path/to/app
-scripts/integration_doctor.sh /path/to/app --strict --json
+node <skill-root>/scripts/integration_doctor.mjs /path/to/app
+node <skill-root>/scripts/integration_doctor.mjs /path/to/app --strict --json
 ```
 
-The shell entry point requires Node.js. Default mode reports findings and exits zero unless the diagnostic itself fails. `--strict` returns 2 for missing requirements (dependency/config/appKey); runtime or usage errors return 1. Warnings such as heuristic native-integration misses remain warnings, since Expo and custom native layouts need manual interpretation.
+Resolve `<skill-root>` from the loaded `SKILL.md`, independently of the app root and current working directory, and quote paths containing spaces. Direct Node.js execution needs no Bash or agent-specific runtime; the adjacent `.sh` file remains an optional Bash wrapper. Diagnostics require Node.js 22+ and access to the app files. If the agent cannot execute commands or Node.js is unavailable, use the manual verification checklist and report the diagnostic as not run. Default mode reports findings and exits zero unless the diagnostic itself fails. `--strict` returns 2 for missing requirements (dependency/config/appKey); runtime or usage errors return 1. Warnings such as heuristic native-integration misses remain warnings, since Expo and custom native layouts need manual interpretation.
 
 JSON contains `schema`, `appRoot`, `checks`, `summary`, and `nativeBinaryVerified: false`. Installed JS version, Podfile.lock, and matching source text are distinct build inputs, not proof of the native code on a device. Finish with Release-build/native baseline tests. The doctor disables CLI auto-update during its version probe and does not execute app JS.

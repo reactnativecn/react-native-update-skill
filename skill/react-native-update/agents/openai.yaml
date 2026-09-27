@@ -1,3 +1,5 @@
+# Optional metadata for hosts that recognize agents/openai.yaml.
+# Other agents use SKILL.md and may ignore or omit this file.
 interface:
   display_name: "React Native Update"
   short_description: "Integrate and recover Pushy/Cresc OTA"

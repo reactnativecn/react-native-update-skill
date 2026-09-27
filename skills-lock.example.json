@@ -9,24 +9,12 @@
         "ref": "main",
         "path": "skill/react-native-update"
       },
-      "locked": {
-        "commit": "ce20180144ae0101bcd99014612095e1834644e8",
-        "version": "0.5.0",
-        "manifestHash": "7364419e8f702ee848ea0a0636f9338e375578a9d9e968faa462389454e04f9d",
-        "scriptsHash": "16d601d70a65894e007d7cd880902b22681008faea33883ce1c0d50214ea8dc8",
-        "fileCount": 4,
-        "scriptFileCount": 1
-      },
+      "locked": {},
       "policy": {
         "pinned": false,
         "autoUpdate": "docs-only"
       },
-      "installations": [
-        {
-          "agent": "codex",
-          "path": "~/.codex/skills/react-native-update"
-        }
-      ]
+      "installations": []
     }
   ]
 }

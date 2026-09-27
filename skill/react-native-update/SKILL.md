@@ -1,6 +1,7 @@
 ---
 name: react-native-update
 description: Integrate and troubleshoot React Native Update OTA for Pushy and Cresc. Use when wiring react-native-update into React Native CLI, Expo prebuild, tvOS/react-native-tvos, HarmonyOS, brownfield, monorepo, or mixed native apps; configuring update.json/appKey, Pushy/Cresc clients, UpdateProvider/useUpdate, native bundle loading, release baseline upload, native cold-start recovery/forceBoot/purgeRestore, bundleHash and error metadata, source maps, checkStrategy/updateStrategy, canary/metaInfo flows, Hermes-base verification, expo-updates conflicts, or OTA failures.
+compatibility: Reading guidance needs no host-specific tools. Optional diagnostics require Node.js 22+ and app files; the shell wrapper additionally needs Bash.
 ---
 
 # React Native Update / Pushy / Cresc
@@ -8,6 +9,14 @@ description: Integrate and troubleshoot React Native Update OTA for Pushy and Cr
 ## Overview
 Use this skill to get a project from "not integrated" to "hot update works in release builds".
 Prioritize copy-paste-safe steps, smallest viable changes, and explicit verification checkpoints.
+
+## Agent and host portability
+- Use this skill with any agent that can load Agent Skills. Do not assume a specific host, model, plugin system, workspace layout, or tool name.
+- Resolve `references/` and `scripts/` relative to the directory containing this `SKILL.md`, not the app root or the process working directory. Use the host's available file-reading tools to load references.
+- `agents/openai.yaml` is optional host-specific metadata, not a dependency or an agent allowlist. The instructions remain usable without `agents/`; no essential integration behavior belongs only in an adapter.
+- Adapt file edits and command execution to the host's available tools and approval policy. If execution or Node.js is unavailable, use the manual checklist, provide commands for the user, and report those checks as not run. Do not install a particular agent just to use this skill.
+- With Node.js 22+ and execution permission, prefer `node <skill-root>/scripts/integration_doctor.mjs <app-root>`. The adjacent `.sh` wrapper is an optional Bash convenience, not a prerequisite. Keep the skill root and app root distinct and quote paths containing spaces.
+- Skill installation and updates belong to the owning host/installer or an explicitly configured external manager. Do not run repository maintenance or self-update tools as part of app integration.
 
 ## Service routing
 - Use **Pushy** for the China service: `pushy` CLI, `new Pushy(...)`, Pushy dashboard.
@@ -25,7 +34,7 @@ Prioritize copy-paste-safe steps, smallest viable changes, and explicit verifica
    - Harmony package/provider/bundle-provider wiring.
    - Brownfield runtime hook instead of changing host inheritance.
 5. Add a single `Pushy` or `Cresc` client outside the root component and wrap the real app tree with `UpdateProvider`.
-6. Run `scripts/integration_doctor.sh <app-root>` and fix actionable misses. Use `--strict --json` for automation; missing requirements return 2, diagnostic errors return 1. Static checks never verify the device's native binary.
+6. When execution is available, run `node <skill-root>/scripts/integration_doctor.mjs <app-root>` and fix actionable misses. Use `--strict --json` for automation; missing requirements return 2, diagnostic errors return 1. Otherwise apply the manual checklist and report the diagnostic as not run. Static checks never verify the device's native binary.
 7. Finish with release-build verification, baseline upload, and hot-update publish checks when the user wants an end-to-end integration.
 
 ## Guardrails
@@ -59,4 +68,4 @@ Prioritize copy-paste-safe steps, smallest viable changes, and explicit verifica
 - Read `references/integration-playbook.md` before giving steps.
 - Read `references/modern-integration.md` for the SDK 10.58.1 / CLI 2.28.0 reference snapshot and primary sources.
 - Copy the tested `references/rollout-whitelist.ts` predicate when implementing a whitelist.
-- Use `scripts/integration_doctor.sh` for quick project diagnosis; it requires Node.js and delegates to the adjacent `.mjs` implementation.
+- Use `scripts/integration_doctor.mjs` through Node.js for optional project diagnosis. `scripts/integration_doctor.sh` is an optional Bash wrapper. Resolve both paths from this skill directory.

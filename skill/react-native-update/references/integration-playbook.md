@@ -386,7 +386,7 @@ jsBundleProvider: new TraceJSBundleProviderDecorator(
 - [ ] On v10.49.0+: release logs/dashboard do not report an unexpected `unknownBundle`; if they do, upload the missing native baseline and expect full-download fallback until fixed.
 - [ ] On v10.52.1+: native cold-start check is enabled or explicitly waived, activation policy is understood, and a controlled force-boot recovery has been tested before an emergency.
 - [ ] On tvOS: rebuilt SDK 10.58.0+ is in the native binary; test normal and offline launch after cache purge, restore timeout, and reset while restoring.
-- [ ] `integration_doctor.sh <app-root> --strict --json` has no missing requirements. Static diagnostics do not replace device Release-build verification.
+- [ ] When execution is available, `node <skill-root>/scripts/integration_doctor.mjs <app-root> --strict --json` has no missing requirements. Resolve the skill root from the loaded `SKILL.md`, not the app directory. Otherwise record the diagnostic as not run and perform the manual checks above. Static diagnostics do not replace device Release-build verification.
 - [ ] Harmony: all 7 native files configured (CMakeLists.txt, PackageProvider.cpp, oh-package.json5, hvigor-config.json5, hvigorfile.ts, RNPackagesFactory.ets, Index.ets).
 - [ ] Harmony: bundle filename is `bundle.harmony.js`.
 - [ ] Harmony: `PushyFileJSBundleProvider` comes before `ResourceJSBundleProvider` in `AnyJSBundleProvider`.
