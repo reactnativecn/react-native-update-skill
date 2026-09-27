@@ -1,5 +1,7 @@
 # react-native-update integration playbook
 
+Reviewed against SDK 10.58.1 and CLI 2.28.0 on 2026-09-27. For tvOS, RN 0.87 TypeScript, error metadata, source maps, and modern publishing options, also read [modern-integration.md](modern-integration.md). These reviewed versions are not blanket minimum requirements for older apps.
+
 ## Contents
 - Fast path
 - Compatibility and version floors
@@ -47,6 +49,8 @@ Useful feature floors:
 | `resetToPackagedBundle()` | 10.48.0 | The client feature-detects older native modules and returns `false`; do not ignore the boolean. |
 | `bundleHash` / `bundleStatus` | 10.49.0 | Use global CLI >= 2.20.3 when uploading baselines. |
 | Native cold-start check, force-boot recovery, and resumable rescue | 10.52.1 | Requires a new native release on every target platform. |
+| tvOS support, purge-restore ordering, nested Expo module layout fix | 10.58.0 | Native application rebuild required. Apple TV uses the `ios` configuration key. |
+| RN 0.87 TypeScript compatibility fixes | 10.58.1 | The 10.58.0 -> 10.58.1 patch alone does not require a native rebuild. |
 
 Do not reject an otherwise valid integration merely because it is below a feature floor. Report the unavailable capability, keep the older supported flow, and recommend a native upgrade when the capability matters.
 
@@ -67,6 +71,10 @@ Do not reject an otherwise valid integration merely because it is below a featur
 - Expo 50+ is the supported baseline. Expo New Architecture support before Expo 51 is incomplete; prefer the latest Expo available.
 - Do not co-install `expo-updates`; it conflicts with update behavior.
 - Expo 48+ with `react-native-update` >= 10.28.2 configures iOS bundle URL automatically. Still run pods after prebuild.
+
+### tvOS / react-native-tvos
+- Read [modern-integration.md](modern-integration.md) for the 10.58.0 native floor, cache-purge recovery, and testing requirements.
+- Apple TV still uses `Platform.OS === 'ios'` and an `ios` appKey. Do not introduce a `tvos` CLI platform or `update.json` key.
 
 ### HarmonyOS
 - `update.json` can include a `harmony` entry. Do not rely on `Platform.OS` unless the app already normalizes it to `harmony`.
@@ -206,7 +214,7 @@ The `useUpdate()` hook returns these key functions and state:
 - `packageVersion`: Current native version number.
 - `currentVersionInfo` (v10.31.2+): Sync field with `{name, description, metaInfo}` of current hot-update version.
 
-For detailed error handling on v10.46.0+, use stable `UpdateError.code` values and `client.onError()`. Keep `lastError` as the normal provider/UI path and as the fallback for older integrations.
+For detailed error handling on v10.46.0+, use stable `UpdateError.code` values and `client.onError()`. Keep `lastError` as the normal provider/UI path and as the fallback for older integrations. For `getUpdateMetadata()`, crash reporters, and source-map matching, see [modern-integration.md](modern-integration.md).
 
 ### Native cold-start recovery (v10.52.1+)
 - Keep the native check enabled by default. It runs once per cold start after a short delay, off the startup path, and reuses its response in the JS check.
@@ -363,6 +371,7 @@ jsBundleProvider: new TraceJSBundleProviderDecorator(
   - `cresc bundle --platform ios|android|harmony`
 - If a framework such as modern Expo has no `index.js`, create one that imports the real entry, for example `import "expo-router/entry";`.
 - After publishing the `.ppk`, bind it to one or more uploaded native baselines. Canary rollout can bind one partial rollout and one full rollout per native baseline; client support requires `react-native-update` >= 10.32.0.
+- For noninteractive publishing, dry runs, source maps, symbolication, and Hermes-base verification, read [modern-integration.md](modern-integration.md).
 
 ## 9) Verification checklist
 - [ ] Release build succeeds on target platform.
@@ -376,6 +385,8 @@ jsBundleProvider: new TraceJSBundleProviderDecorator(
 - [ ] Installed SDK and global CLI versions were read from the actual installation, and versioned features have fallbacks for older supported binaries.
 - [ ] On v10.49.0+: release logs/dashboard do not report an unexpected `unknownBundle`; if they do, upload the missing native baseline and expect full-download fallback until fixed.
 - [ ] On v10.52.1+: native cold-start check is enabled or explicitly waived, activation policy is understood, and a controlled force-boot recovery has been tested before an emergency.
+- [ ] On tvOS: rebuilt SDK 10.58.0+ is in the native binary; test normal and offline launch after cache purge, restore timeout, and reset while restoring.
+- [ ] `integration_doctor.sh <app-root> --strict --json` has no missing requirements. Static diagnostics do not replace device Release-build verification.
 - [ ] Harmony: all 7 native files configured (CMakeLists.txt, PackageProvider.cpp, oh-package.json5, hvigor-config.json5, hvigorfile.ts, RNPackagesFactory.ets, Index.ets).
 - [ ] Harmony: bundle filename is `bundle.harmony.js`.
 - [ ] Harmony: `PushyFileJSBundleProvider` comes before `ResourceJSBundleProvider` in `AnyJSBundleProvider`.
@@ -398,7 +409,7 @@ jsBundleProvider: new TraceJSBundleProviderDecorator(
 - Android release PNG crunching or old AAB density split behavior changing asset bytes.
 - iOS pods not installed after dependency update.
 - Native file edits not followed by full rebuild.
-- Treating `metaInfo` as an object. It is a string payload; parse JSON defensively.
+- Treating `metaInfo` as an object or trusting a TypeScript assertion after JSON.parse. Validate its runtime shape and fail closed.
 - Harmony: using wrong bundle filename. Must be `bundle.harmony.js` regardless of Hermes bytecode usage.
 - Harmony: missing `PushyFileJSBundleProvider` in `AnyJSBundleProvider` — it must come before the `ResourceJSBundleProvider` fallback.
 - Harmony: missing `reactNativeUpdatePlugin()` in `hvigorfile.ts`.
@@ -439,11 +450,14 @@ export default class Root extends React.Component {
 For Cresc, replace `Pushy` with `Cresc`.
 
 ## 12) Example: custom whitelist (gray release)
-Use `metaInfo` and your own user/device attributes to decide whether to apply update.
+Use `metaInfo` and your own user/device attributes to decide whether to apply update. Copy [rollout-whitelist.ts](rollout-whitelist.ts) into the app beside this hook. Its tested `isUserAllowed` predicate rejects invalid JSON, null, non-object metadata, non-array or mixed-type allowlists, and substring matches.
+
+Configure the singleton client with `updateStrategy: null` when this hook owns download/apply decisions; do not leave an automatic strategy that bypasses the gate.
 
 ```tsx
 import { useEffect, useRef } from 'react';
 import { useUpdate } from 'react-native-update';
+import { isUserAllowed } from './rollout-whitelist';
 
 function useWhitelistGate(currentUserId: string) {
   const { checkUpdate, updateInfo, downloadUpdate, switchVersionLater } = useUpdate();
@@ -451,7 +465,7 @@ function useWhitelistGate(currentUserId: string) {
   const inFlightHashRef = useRef<string | null>(null);
 
   useEffect(() => {
-    void checkUpdate();
+    void checkUpdate().catch(() => { /* Render lastError from useUpdate() in the UI. */ });
   }, [checkUpdate]);
 
   useEffect(() => {
@@ -459,28 +473,22 @@ function useWhitelistGate(currentUserId: string) {
     if (!updateInfo?.update || !updateInfo.hash) return;
     if (handledHashRef.current === updateInfo.hash) return;
     if (inFlightHashRef.current === updateInfo.hash) return;
+    if (!isUserAllowed(updateInfo.metaInfo, currentUserId)) return;
 
     let cancelled = false;
+    const hash = updateInfo.hash;
     (async () => {
-      let meta: { allowUsers?: string[]; allowChannels?: string[] } = {};
-      try {
-        meta = updateInfo.metaInfo ? JSON.parse(updateInfo.metaInfo) : {};
-      } catch {
-        return;
-      }
-
-      const allowList = meta.allowUsers ?? [];
-      if (!allowList.includes(currentUserId)) return;
-
-      inFlightHashRef.current = updateInfo.hash!;
+      inFlightHashRef.current = hash;
       try {
         const ok = await downloadUpdate();
         if (!cancelled && ok) {
-          handledHashRef.current = updateInfo.hash!;
           switchVersionLater();
+          handledHashRef.current = hash;
         }
+      } catch {
+        // Use lastError in the UI; never allow an unhandled async rejection.
       } finally {
-        inFlightHashRef.current = null;
+        if (inFlightHashRef.current === hash) inFlightHashRef.current = null;
       }
     })();
     return () => {
@@ -491,7 +499,7 @@ function useWhitelistGate(currentUserId: string) {
 ```
 
 Notes:
-- Keep server-side rollout rules as source of truth; client whitelist is an extra guard.
-- Store small, explicit whitelist keys in `metaInfo` such as `allowUsers` or `allowChannels`.
+- Keep server-side rollout rules as source of truth; client whitelist is an extra guard, not access control or a substitute for server/native recovery policy.
+- Store small, explicit whitelist keys in `metaInfo` such as `allowUsers`. Keep personal data out of public logs and crash-report metadata.
 - Prefer phased rollout: internal users -> small percent -> full rollout.
-- Never crash on malformed `metaInfo`; wrap JSON parsing in `try/catch`.
+- Treat JSON.parse output as `unknown` and validate it before accessing properties. Missing or malformed metadata must reject this update.

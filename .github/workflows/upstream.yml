@@ -1,0 +1,20 @@
+name: Upstream reference check
+on:
+  schedule:
+    - cron: '17 2 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compare latest stable SDK and CLI releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/check-upstream.mjs

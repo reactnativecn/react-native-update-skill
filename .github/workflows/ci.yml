@@ -1,0 +1,56 @@
+name: CI and release
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: skill-ci-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: '22'
+          - os: ubuntu-latest
+            node: '24'
+          - os: macos-latest
+            node: '22'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Existing manager regression suite
+        run: node tools/test-skill-update-manager.mjs
+      - name: Manager, doctor, and rollout regressions
+        run: node --experimental-strip-types --test tools/tests/*.test.mjs
+      - name: Package regressions
+        run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
+      - name: Build and verify distribution
+        run: |
+          python3 tools/package_skill.py --output "$RUNNER_TEMP/react-native-update.skill"
+          python3 tools/package_skill.py --check --output "$RUNNER_TEMP/react-native-update.skill"
+          bash -n tools/release.sh skill/react-native-update/scripts/integration_doctor.sh
+  release:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Synchronize distribution and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/release.sh
